@@ -1,0 +1,33 @@
+Mysh:
+
+  Basic functoinality:
+    costs 5 points
+    ☐ Basic catalogues functionality (ls, cd, pwd)
+    ☐ Creating child processes
+
+  Pipeline:
+    costs 8 points
+    ☐ Pipeline implementation
+
+  Script file execution:
+    costs 10 points
+    ☐ scripts implementation
+
+  Waiting processes:
+    costs 8 points
+    ☐ Moving task to separate process (symbol '&')
+
+  Variables:
+    costs 9 points
+    ☐ Local variables
+    ☐ Env variables
+    ☐ Env getting
+    ☐ Env passing to child processes
+
+  if statement:
+    costs 5 points
+    ☐ if statement implementation
+
+  for statement:
+    costs 5 points
+    ☐ for statement implementation
