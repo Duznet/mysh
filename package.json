@@ -8,16 +8,16 @@
   },
   "author": "Mark Gulyaev",
   "license": "ISC",
+  "dependencies": {
+    "shell-quote": "^1.4.2",
+    "underscore": "^1.7.0",
+    "colors": "^1.0.3",
+    "commander": "^2.5.0"
+  },
   "devDependencies": {
     "grunt": "^0.4.5",
     "grunt-contrib-coffee": "^0.12.0",
     "grunt-contrib-watch": "^0.6.1",
-    "grunt-newer": "^0.8.0",
-  },
-  "dependencies": {
-    "shell-quote": "^1.4.2",
-    "underscore": "^1.7.0"
-    "colors": "^1.0.3",
-    "commander": "^2.5.0"
+    "grunt-newer": "^0.8.0"
   }
 }
