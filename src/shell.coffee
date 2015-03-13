@@ -25,6 +25,9 @@ class Shell extends EventEmitter
   collectedQueue: []
   stopLines: []
 
+  forArrayData: []
+  forCounterName: 'i'
+
   isPaused: false
   isClosed: false
 
@@ -180,6 +183,51 @@ class Shell extends EventEmitter
       @spawnSubshell options, () =>
         @collectedQueue = []
         done 'doneif'
+
+    for: (done, args...) ->
+      varName = args[0]
+      # I believe args[1] is 'in'
+      arrArgs = _.rest args, 2
+      arrData = ''
+      for a in arrArgs
+        arrData += a + ' '
+      if @options.debug
+        console.log "arrData: #{arrData}"
+      @status = 'collecting'
+      @stopLines = ['donefor']
+
+      @forCounterName = varName
+      @forArrayData = eval arrData
+      done 'for'
+
+    donefor: (done) ->
+      @status = 'running'
+      if @options.debug
+        console.log 'forArrayData:', @forArrayData
+
+      @processForLoop done, 0, @collectedQueue
+
+      done 'doneif'
+
+
+  processForLoop: (done, index, queue) ->
+    if index is @forArrayData.length
+      @forArrayData = []
+      done 'processForLoop'
+      return
+
+    counter = {}
+    counter[@forCounterName] = @forArrayData[index]
+    if @options.debug
+      console.log 'counter:', counter
+      console.log 'queue:', queue
+    options =
+      input: streamify queue
+      output: process.stdout
+      env: _.defaults counter, @options.env
+
+    @spawnSubshell options, () =>
+      @processForLoop(done, index + 1, queue)
 
   spawnSubshell: (options, callback) ->
     options = _.defaults options, {terminal: false}, @options
