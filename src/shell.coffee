@@ -93,8 +93,17 @@ class Shell
     parsed = parse line
     if @options.debug
       console.log 'parsed:', parsed
-    cmd = parsed[0]
-    args = _.rest parsed
+    if parsed.length is 0
+      @done()
+      return
+    cmd = ''
+    args = []
+    if @commands[parsed[0]]?
+      cmd = parsed[0]
+      args = _.rest parsed
+    else
+      cmd = 'run'
+      args = parsed
 
     @commands[cmd].apply this, [@done].concat(args)
 
