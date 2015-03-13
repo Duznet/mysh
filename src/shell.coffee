@@ -1,5 +1,6 @@
 _ = require 'underscore'
 readline = require 'readline'
+parse = require('shell-quote').parse
 
 class Shell
 
@@ -14,14 +15,16 @@ class Shell
 
   options: {}
 
+  queue: []
+  paused: false
+
   initCli: (options) ->
     @cli = readline.createInterface options
     @cli.setPrompt options.prompt
 
-    @cli.on 'line', (line) =>
-      if @options.debug
-        console.log "got line: '#{line}'"
-      if @options.terminal then @cli.prompt()
+    @cli.on 'line', @onLine
+    @cli.on 'pause', @onPause
+    @cli.on 'resume', @onResume
 
   constructor: (options = {}) ->
     @options = _.defaults options, @defaults
@@ -37,5 +40,37 @@ class Shell
   run: ->
     if @options.terminal then @cli.prompt()
 
+  onLine: (line) =>
+    if @options.debug
+      console.log "got line: '#{line}'"
+    @queue.push line
+    if not @paused
+      @processQueue()
+
+  onPause: () =>
+    @paused = true
+
+  onResume: () =>
+    @paused = false
+    @processQueue()
+
+  done: () =>
+    @cli.resume()
+
+  process: (line) ->
+    parsedLine = parse line
+    if @options.debug
+      console.log 'parsed line:', parsedLine
+    @done()
+
+  processQueue: () ->
+    if @queue.length isnt 0
+      line = @queue.shift()
+      if @options.debug
+        console.log "processing line: '#{line}'"
+      @cli.pause()
+      @process line
+    else
+      @cli.prompt() if @options.terminal
 
 module.exports = Shell
