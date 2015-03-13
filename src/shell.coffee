@@ -3,8 +3,9 @@ readline = require 'readline'
 parse = require('shell-quote').parse
 fs = require 'fs'
 childProcess = require 'child_process'
+EventEmitter = require('events').EventEmitter
 
-class Shell
+class Shell extends EventEmitter
 
   defaults:
     terminal: false
@@ -19,6 +20,7 @@ class Shell
 
   queue: []
   isPaused: false
+  isClosed: false
 
   initCli: (options) ->
     @cli = readline.createInterface options
@@ -27,6 +29,7 @@ class Shell
     @cli.on 'line', @onLine
     @cli.on 'pause', @onPause
     @cli.on 'resume', @onResume
+    @cli.on 'close', @onClose
 
   constructor: (options = {}) ->
     @options = _.defaults options, @defaults
@@ -55,6 +58,9 @@ class Shell
   onResume: () =>
     @isPaused = false
     @processQueue()
+
+  onClose: () =>
+    @isClosed = true
 
   done: () =>
     if @options.debug
@@ -89,6 +95,18 @@ class Shell
         console.log "could not run command: '#{childCmd}'"
         done()
 
+    source: (done, path) ->
+      options =
+        input: fs.createReadStream path
+        output: process.stdout
+        terminal: false
+        debug: @options.debug
+
+      childShell = new Shell options
+      childShell.on 'finish', () =>
+        done()
+
+
   process: (line) ->
     parsed = parse line
     if @options.debug
@@ -116,5 +134,7 @@ class Shell
       @process line
     else
       @cli.prompt() if @options.terminal
+      @emit 'finish' if @isClosed
+
 
 module.exports = Shell
