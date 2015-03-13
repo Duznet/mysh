@@ -4,6 +4,7 @@ parse = require('shell-quote').parse
 fs = require 'fs'
 childProcess = require 'child_process'
 EventEmitter = require('events').EventEmitter
+streamify = require 'stream-array'
 
 class Shell extends EventEmitter
 
@@ -15,10 +16,15 @@ class Shell extends EventEmitter
     locals: {}
     env: process.env
     debug: false
+    parseOnly: false
 
   options: {}
+  status: 'running'
 
   queue: []
+  collectedQueue: []
+  stopLine: ''
+
   isPaused: false
   isClosed: false
 
@@ -110,6 +116,11 @@ class Shell extends EventEmitter
         console.log "#{k}=#{v}"
       done()
 
+    locals: (done) ->
+      for k, v of @options.locals
+        console.log "#{k}=#{v}"
+      done()
+
     set: (done, line) ->
       data = line.split '='
       varName = data[0]
@@ -134,12 +145,51 @@ class Shell extends EventEmitter
       console.log result
       done()
 
+    if: (done, args...) ->
+      expStr = ''
+      for a in args
+        expStr += if a instanceof Object then a.op else a
+        expStr += ' '
+      if @options.debug
+        console.log "expression: '#{expStr}'"
+      expRes = eval expStr
+      if @options.debug
+        console.log "expression result: '#{expRes}'"
+      if expRes
+        @status = 'collecting'
+        @stopLine = 'doneif'
+      else
+        @status = 'skipping'
+        @stopLine = 'else'
+      done()
+
+    else: (done) ->
+      @status = if @status is 'skipping' then 'collecting' else 'skipping'
+      @stopLine = 'doneif'
+      done()
+
+    doneif: (done) ->
+      @status = 'running'
+      options = @options
+      options.input = streamify @collectedQueue
+      options.output = process.stdout
+      options.terminal = false
+
+      childShell = new Shell options
+      childShell.on 'finish', () =>
+        console.log 'finished!!!'
+        @collectedQueue = []
+        done()
 
   process: (line) ->
-    parsed = parse line, _.extend(@options.locals, @options.env)
-    if @options.debug
+    if line isnt @stopLine and (@status is 'skipping' or @status is 'collecting')
+      @collectedQueue.push line if @status is 'collecting'
+      @done()
+      return
+    parsed = parse line, _.extend(_.clone(@options.locals), @options.env)
+    if @options.debug or @options.parseOnly
       console.log 'parsed:', parsed
-    if parsed.length is 0
+    if parsed.length is 0 or @options.parseOnly
       @done()
       return
     cmd = ''
@@ -158,6 +208,7 @@ class Shell extends EventEmitter
       line = @queue.shift()
       if @options.debug
         console.log "processing: '#{line}'"
+        console.log "status: #{@status}"
       @cli.pause()
       @process line
     else
