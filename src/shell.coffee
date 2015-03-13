@@ -16,7 +16,7 @@ class Shell
   options: {}
 
   queue: []
-  paused: false
+  isPaused: false
 
   initCli: (options) ->
     @cli = readline.createInterface options
@@ -42,32 +42,43 @@ class Shell
 
   onLine: (line) =>
     if @options.debug
-      console.log "got line: '#{line}'"
+      console.log "got: '#{line}'"
     @queue.push line
-    if not @paused
+    if not @isPaused
       @processQueue()
 
   onPause: () =>
-    @paused = true
+    @isPaused = true
 
   onResume: () =>
-    @paused = false
+    @isPaused = false
     @processQueue()
 
   done: () =>
+    if @options.debug
+      console.log 'done'
     @cli.resume()
 
+  commands:
+
+    pwd: (done) ->
+      console.log process.cwd()
+      done()
+
   process: (line) ->
-    parsedLine = parse line
+    parsed = parse line
     if @options.debug
-      console.log 'parsed line:', parsedLine
-    @done()
+      console.log 'parsed:', parsed
+    cmd = parsed[0]
+    args = _.rest parsed
+
+    @commands[cmd].apply this, [@done].concat(args)
 
   processQueue: () ->
     if @queue.length isnt 0
       line = @queue.shift()
       if @options.debug
-        console.log "processing line: '#{line}'"
+        console.log "processing: '#{line}'"
       @cli.pause()
       @process line
     else
