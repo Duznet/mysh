@@ -106,6 +106,11 @@ class Shell extends EventEmitter
       childShell.on 'finish', () =>
         done()
 
+    env: (done) ->
+      for k, v of @options.env
+        console.log "#{k}=#{v}"
+      done()
+
 
   process: (line) ->
     parsed = parse line

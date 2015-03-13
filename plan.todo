@@ -21,7 +21,7 @@ Mysh:
     costs 9 points
     ☐ Local variables
     ☐ Env variables
-    ☐ Env getting
+    ✔ Env getting @done (15-03-13 19:45)
     ☐ Env passing to child processes
 
   if statement:
