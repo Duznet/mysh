@@ -19,10 +19,10 @@ Mysh:
 
   Variables:
     costs 9 points
-    ☐ Local variables
-    ☐ Env variables
+    ✔ Local variables @done (15-03-13 19:53)
+    ✔ Env variables @done (15-03-13 19:57)
     ✔ Env getting @done (15-03-13 19:45)
-    ☐ Env passing to child processes
+    ✔ Env passing to child processes @done (15-03-13 20:20)
 
   if statement:
     costs 5 points

@@ -88,7 +88,7 @@ class Shell extends EventEmitter
     run: (done, args...) ->
       childCmd = args[0]
       childArgs = _.rest args
-      spawned = childProcess.spawn childCmd, childArgs, {stdio: 'inherit'}
+      spawned = childProcess.spawn childCmd, childArgs, {env: @options.env, stdio: 'inherit'}
       spawned.on 'exit', (code) ->
         done()
       spawned.on 'error', (err) ->
@@ -96,11 +96,10 @@ class Shell extends EventEmitter
         done()
 
     source: (done, path) ->
-      options =
-        input: fs.createReadStream path
-        output: process.stdout
-        terminal: false
-        debug: @options.debug
+      options = @options
+      options.input = fs.createReadStream path
+      options.output = process.stdout
+      options.terminal = false
 
       childShell = new Shell options
       childShell.on 'finish', () =>
@@ -111,9 +110,33 @@ class Shell extends EventEmitter
         console.log "#{k}=#{v}"
       done()
 
+    set: (done, line) ->
+      data = line.split '='
+      varName = data[0]
+      value = data[1]
+      if @options.env[varName]?
+        @options.env[varName] = value
+      else
+        @options.locals[varName] = value
+      done()
+
+    export: (done, line) ->
+      data = line.split '='
+      if data.length is 2
+        @options.env[data[0]] = data[1]
+      else
+        @options.env[data[0]] = @options.locals[data[0]]
+      done()
+
+    echo: (done, args...) ->
+      result = ''
+      _.each args, (arg) -> result += arg + ' '
+      console.log result
+      done()
+
 
   process: (line) ->
-    parsed = parse line
+    parsed = parse line, _.extend(@options.locals, @options.env)
     if @options.debug
       console.log 'parsed:', parsed
     if parsed.length is 0
