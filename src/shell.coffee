@@ -2,6 +2,7 @@ _ = require 'underscore'
 readline = require 'readline'
 parse = require('shell-quote').parse
 fs = require 'fs'
+childProcess = require 'child_process'
 
 class Shell
 
@@ -78,6 +79,15 @@ class Shell
         console.log result
         done()
 
+    run: (done, args...) ->
+      childCmd = args[0]
+      childArgs = _.rest args
+      spawned = childProcess.spawn childCmd, childArgs, {stdio: 'inherit'}
+      spawned.on 'exit', (code) ->
+        done()
+      spawned.on 'error', (err) ->
+        console.log "could not run command: '#{childCmd}'"
+        done()
 
   process: (line) ->
     parsed = parse line

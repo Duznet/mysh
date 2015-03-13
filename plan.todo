@@ -3,7 +3,7 @@ Mysh:
   Basic functoinality:
     costs 5 points
     ✔ Basic catalogues functionality (ls, cd, pwd) @done (15-03-13 17:55)
-    ☐ Creating child processes
+    ✔ Creating child processes @done (15-03-13 18:18)
 
   Pipeline:
     costs 8 points
