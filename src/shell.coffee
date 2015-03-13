@@ -1,6 +1,7 @@
 _ = require 'underscore'
 readline = require 'readline'
 parse = require('shell-quote').parse
+fs = require 'fs'
 
 class Shell
 
@@ -64,6 +65,19 @@ class Shell
     pwd: (done) ->
       console.log process.cwd()
       done()
+
+    cd: (done, dir) ->
+      process.chdir dir
+      done()
+
+    ls: (done, path = process.cwd()) ->
+      fs.readdir path, (err, files) ->
+        result = ''
+        for file in files
+          result += file + '\t'
+        console.log result
+        done()
+
 
   process: (line) ->
     parsed = parse line
