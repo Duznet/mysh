@@ -16,7 +16,7 @@ class Shell extends EventEmitter
     locals: {}
     env: process.env
     debug: false
-    parseOnly: false
+    parseInfo: false
 
   options: {}
   status: 'running'
@@ -52,7 +52,7 @@ class Shell extends EventEmitter
     if @options.terminal then @cli.prompt()
 
   onLine: (line) =>
-    if @options.debug
+    if @options.lineInfo
       console.log "got: '#{line}'"
     @queue.push line
     if not @isPaused
@@ -102,13 +102,10 @@ class Shell extends EventEmitter
         done()
 
     source: (done, path) ->
-      options = @options
-      options.input = fs.createReadStream path
-      options.output = process.stdout
-      options.terminal = false
-
-      childShell = new Shell options
-      childShell.on 'finish', () =>
+      options =
+        input: fs.createReadStream path
+        output: process.stdout
+      @spawnSubshell options, () =>
         done()
 
     env: (done) ->
@@ -170,16 +167,19 @@ class Shell extends EventEmitter
 
     doneif: (done) ->
       @status = 'running'
-      options = @options
-      options.input = streamify @collectedQueue
-      options.output = process.stdout
-      options.terminal = false
 
-      childShell = new Shell options
-      childShell.on 'finish', () =>
-        console.log 'finished!!!'
+      options =
+        input: streamify @collectedQueue
+        output: process.stdout
+
+      @spawnSubshell options, () =>
         @collectedQueue = []
         done()
+
+  spawnSubshell: (options, callback) ->
+    options = _.defaults options, {terminal: false}, @options
+    childShell = new Shell options
+    childShell.on 'finish', callback
 
   process: (line) ->
     if line isnt @stopLine and (@status is 'skipping' or @status is 'collecting')
@@ -187,9 +187,9 @@ class Shell extends EventEmitter
       @done()
       return
     parsed = parse line, _.extend(_.clone(@options.locals), @options.env)
-    if @options.debug or @options.parseOnly
+    if @options.parseInfo
       console.log 'parsed:', parsed
-    if parsed.length is 0 or @options.parseOnly
+    if parsed.length is 0
       @done()
       return
     cmd = ''
@@ -212,8 +212,10 @@ class Shell extends EventEmitter
       @cli.pause()
       @process line
     else
-      @cli.prompt() if @options.terminal
-      @emit 'finish' if @isClosed
+      if @options.terminal
+        @cli.prompt()
+      if not @options.terminal
+        res = @emit 'finish'
 
 
 module.exports = Shell
