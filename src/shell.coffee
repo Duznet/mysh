@@ -23,7 +23,7 @@ class Shell extends EventEmitter
 
   queue: []
   collectedQueue: []
-  stopLine: ''
+  stopLines: []
 
   isPaused: false
   isClosed: false
@@ -66,22 +66,24 @@ class Shell extends EventEmitter
     @processQueue()
 
   onClose: () =>
-    @isClosed = true
-
-  done: () =>
     if @options.debug
-      console.log 'done'
+      console.log 'closed!'
+    @emit 'finish'
+
+  done: (code) =>
+    if @options.debug
+      console.log 'done', code
     @cli.resume()
 
   commands:
 
     pwd: (done) ->
       console.log process.cwd()
-      done()
+      done 'pwd'
 
     cd: (done, dir) ->
       process.chdir dir
-      done()
+      done 'cd'
 
     ls: (done, path = process.cwd()) ->
       fs.readdir path, (err, files) ->
@@ -89,34 +91,34 @@ class Shell extends EventEmitter
         for file in files
           result += file + '\t'
         console.log result
-        done()
+        done 'ls'
 
     run: (done, args...) ->
       childCmd = args[0]
       childArgs = _.rest args
       spawned = childProcess.spawn childCmd, childArgs, {env: @options.env, stdio: 'inherit'}
       spawned.on 'exit', (code) ->
-        done()
+        done 'run'
       spawned.on 'error', (err) ->
         console.log "could not run command: '#{childCmd}'"
-        done()
+        done 'run'
 
     source: (done, path) ->
       options =
         input: fs.createReadStream path
         output: process.stdout
       @spawnSubshell options, () =>
-        done()
+        done 'source'
 
     env: (done) ->
       for k, v of @options.env
         console.log "#{k}=#{v}"
-      done()
+      done 'env'
 
     locals: (done) ->
       for k, v of @options.locals
         console.log "#{k}=#{v}"
-      done()
+      done 'locals'
 
     set: (done, line) ->
       data = line.split '='
@@ -126,7 +128,7 @@ class Shell extends EventEmitter
         @options.env[varName] = value
       else
         @options.locals[varName] = value
-      done()
+      done 'set'
 
     export: (done, line) ->
       data = line.split '='
@@ -134,13 +136,14 @@ class Shell extends EventEmitter
         @options.env[data[0]] = data[1]
       else
         @options.env[data[0]] = @options.locals[data[0]]
-      done()
+      done 'export'
 
     echo: (done, args...) ->
       result = ''
       _.each args, (arg) -> result += arg + ' '
       console.log result
-      done()
+      done 'echo'
+
 
     if: (done, args...) ->
       expStr = ''
@@ -154,16 +157,18 @@ class Shell extends EventEmitter
         console.log "expression result: '#{expRes}'"
       if expRes
         @status = 'collecting'
-        @stopLine = 'doneif'
+        @stopLines = ['doneif', 'else']
       else
         @status = 'skipping'
-        @stopLine = 'else'
-      done()
+        @stopLines = ['else']
+      done 'if'
 
     else: (done) ->
       @status = if @status is 'skipping' then 'collecting' else 'skipping'
-      @stopLine = 'doneif'
-      done()
+      if @options.debug
+        console.log 'status after else: ', @status
+      @stopLines = ['doneif']
+      done 'else'
 
     doneif: (done) ->
       @status = 'running'
@@ -174,7 +179,7 @@ class Shell extends EventEmitter
 
       @spawnSubshell options, () =>
         @collectedQueue = []
-        done()
+        done 'doneif'
 
   spawnSubshell: (options, callback) ->
     options = _.defaults options, {terminal: false}, @options
@@ -182,15 +187,23 @@ class Shell extends EventEmitter
     childShell.on 'finish', callback
 
   process: (line) ->
-    if line isnt @stopLine and (@status is 'skipping' or @status is 'collecting')
-      @collectedQueue.push line if @status is 'collecting'
-      @done()
+    if @options.debug
+      console.log "processing: '#{line}'"
+      console.log "status: #{@status}"
+    if line not in @stopLines and (@status is 'skipping' or @status is 'collecting')
+      if @status is 'collecting'
+        @collectedQueue.push line
+        if @options.debug
+          console.log 'collectedQueue: ', @collectedQueue
+      @done 'process'
       return
+
     parsed = parse line, _.extend(_.clone(@options.locals), @options.env)
     if @options.parseInfo
       console.log 'parsed:', parsed
+
     if parsed.length is 0
-      @done()
+      @done 'process'
       return
     cmd = ''
     args = []
@@ -206,16 +219,10 @@ class Shell extends EventEmitter
   processQueue: () ->
     if @queue.length isnt 0
       line = @queue.shift()
-      if @options.debug
-        console.log "processing: '#{line}'"
-        console.log "status: #{@status}"
       @cli.pause()
       @process line
     else
       if @options.terminal
         @cli.prompt()
-      if not @options.terminal
-        res = @emit 'finish'
-
 
 module.exports = Shell
