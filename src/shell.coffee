@@ -77,11 +77,15 @@ class Shell extends EventEmitter
   onClose: () =>
     if @options.debug
       console.log 'closed!'
-    @emit 'finish'
+      console.log 'cur queue:', @queue
+      console.log 'collectedQueue:', @collectedQueue
+    @isClosed = true
+    if @queue.length is 0 and @collectedQueue.length is 0
+      @emit 'finish'
 
   done: (code) =>
     if @options.debug
-      console.log 'done', code
+      console.log '* done', code
     @cli.resume()
 
   commands:
@@ -225,6 +229,9 @@ class Shell extends EventEmitter
 
 
   processForLoop: (done, index) ->
+    if @options.debug
+      console.log 'forArrayData:', @forArrayData
+      console.log 'index:', index
     if index is @forArrayData.length
       @forArrayData = []
       done 'processForLoop'
@@ -241,6 +248,8 @@ class Shell extends EventEmitter
       env: _.defaults counter, @options.env
 
     @spawnSubshell options, () =>
+      if @options.debug
+        console.log 'starting next iteration'
       @processForLoop(done, index + 1)
 
   makeShellStream: (data) ->
@@ -294,7 +303,7 @@ class Shell extends EventEmitter
         return
 
     if @options.debug
-      console.log 'start', cmd
+      console.log '* start', cmd
     @commands[cmd].apply this, [@done].concat(args)
 
   processQueue: () ->
@@ -303,6 +312,8 @@ class Shell extends EventEmitter
       @cli.pause()
       @process line
     else
+      if @isClosed
+        @emit 'finish'
       if @options.terminal
         @cli.prompt()
 
