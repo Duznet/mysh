@@ -5,6 +5,7 @@ fs = require 'fs'
 childProcess = require 'child_process'
 EventEmitter = require('events').EventEmitter
 streamify = require 'stream-array'
+os = require 'os'
 
 class Shell extends EventEmitter
 
@@ -18,18 +19,6 @@ class Shell extends EventEmitter
     debug: false
     parseInfo: false
 
-  options: {}
-  status: 'running'
-
-  queue: []
-  collectedQueue: []
-  stopLines: []
-
-  forArrayData: []
-  forCounterName: 'i'
-
-  isPaused: false
-  isClosed: false
 
   initCli: (options) ->
     @cli = readline.createInterface options
@@ -41,6 +30,23 @@ class Shell extends EventEmitter
     @cli.on 'close', @onClose
 
   constructor: (options = {}) ->
+    @options = {}
+    @status = 'running'
+
+    @queue = []
+    @collectedQueue = []
+
+    @stopLines = []
+    @incLines = []
+    @decLines = []
+    @level = 0
+
+    @forArrayData = []
+    @forCounterName = 'i'
+
+    @isPaused = false
+    @isClosed = false
+
     @options = _.defaults options, @defaults
 
     cliOptions =
@@ -143,7 +149,10 @@ class Shell extends EventEmitter
 
     echo: (done, args...) ->
       result = ''
-      _.each args, (arg) -> result += arg + ' '
+      _.each args, (arg) ->
+        if arg instanceof Object
+          arg = arg.op
+        result += arg + ' '
       console.log result
       done 'echo'
 
@@ -158,6 +167,8 @@ class Shell extends EventEmitter
       expRes = eval expStr
       if @options.debug
         console.log "expression result: '#{expRes}'"
+      @incLines = ['if']
+      @decLines = ['doneif']
       if expRes
         @status = 'collecting'
         @stopLines = ['doneif', 'else']
@@ -176,8 +187,11 @@ class Shell extends EventEmitter
     doneif: (done) ->
       @status = 'running'
 
+      if @options.debug
+        console.log 'collectedQueue:', @collectedQueue
+
       options =
-        input: streamify @collectedQueue
+        input: @makeShellStream @collectedQueue
         output: process.stdout
 
       @spawnSubshell options, () =>
@@ -194,6 +208,8 @@ class Shell extends EventEmitter
       if @options.debug
         console.log "arrData: #{arrData}"
       @status = 'collecting'
+      @incLines = ['for']
+      @decLines = ['donefor']
       @stopLines = ['donefor']
 
       @forCounterName = varName
@@ -205,12 +221,10 @@ class Shell extends EventEmitter
       if @options.debug
         console.log 'forArrayData:', @forArrayData
 
-      @processForLoop done, 0, @collectedQueue
-
-      done 'doneif'
+      @processForLoop done, 0
 
 
-  processForLoop: (done, index, queue) ->
+  processForLoop: (done, index) ->
     if index is @forArrayData.length
       @forArrayData = []
       done 'processForLoop'
@@ -220,14 +234,18 @@ class Shell extends EventEmitter
     counter[@forCounterName] = @forArrayData[index]
     if @options.debug
       console.log 'counter:', counter
-      console.log 'queue:', queue
+      console.log 'queue:', @collectedQueue
     options =
-      input: streamify queue
+      input: @makeShellStream @collectedQueue
       output: process.stdout
       env: _.defaults counter, @options.env
 
     @spawnSubshell options, () =>
-      @processForLoop(done, index + 1, queue)
+      @processForLoop(done, index + 1)
+
+  makeShellStream: (data) ->
+    newData = _.map data, (x) -> x + os.EOL
+    return streamify newData
 
   spawnSubshell: (options, callback) ->
     options = _.defaults options, {terminal: false}, @options
@@ -235,16 +253,7 @@ class Shell extends EventEmitter
     childShell.on 'finish', callback
 
   process: (line) ->
-    if @options.debug
-      console.log "processing: '#{line}'"
-      console.log "status: #{@status}"
-    if line not in @stopLines and (@status is 'skipping' or @status is 'collecting')
-      if @status is 'collecting'
-        @collectedQueue.push line
-        if @options.debug
-          console.log 'collectedQueue: ', @collectedQueue
-      @done 'process'
-      return
+    line = line.trim()
 
     parsed = parse line, _.extend(_.clone(@options.locals), @options.env)
     if @options.parseInfo
@@ -262,6 +271,30 @@ class Shell extends EventEmitter
       cmd = 'run'
       args = parsed
 
+    if @options.debug
+      console.log '---'
+      console.log 'processing line:', line
+      console.log 'level:', @level
+      console.log 'status:', @status
+      console.log 'incLines:', @incLines
+      console.log 'decLines:', @decLines
+      console.log 'stopLines:', @stopLines
+
+    if (@status is 'skipping' or @status is 'collecting')
+      if cmd not in @stopLines or @level > 0
+        if cmd in @incLines
+          ++@level
+        if cmd in @decLines
+          --@level
+        if @status is 'collecting'
+          @collectedQueue.push line
+          if @options.debug
+            console.log 'collectedQueue: ', @collectedQueue
+        @done 'process'
+        return
+
+    if @options.debug
+      console.log 'start', cmd
     @commands[cmd].apply this, [@done].concat(args)
 
   processQueue: () ->
