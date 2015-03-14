@@ -262,11 +262,33 @@ class Shell extends EventEmitter
     childShell.on 'finish', callback
 
   process: (line) ->
+    needsDaemonize = false
+
     line = line.trim()
 
     parsed = parse line, _.extend(_.clone(@options.locals), @options.env)
     if @options.parseInfo
       console.log 'parsed:', parsed
+
+    lastParsed = _.last parsed
+    if lastParsed instanceof Object and lastParsed.op is '&'
+      needsDaemonize = true
+      parsed = _.initial parsed
+
+    if needsDaemonize
+      if @options.debug
+        console.log 'needs daemonize'
+      spawned = childProcess.spawn 'node', ['./app.js', '-n'], {
+        env: @options.env
+        detached: true
+      }
+      spawned.stdin.resume()
+      spawned.stdin.write _.initial(line).join('') + "\n"
+      spawned.unref()
+
+      @done 'process'
+      return
+
 
     if parsed.length is 0
       @done 'process'

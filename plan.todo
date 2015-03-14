@@ -15,7 +15,7 @@ Mysh:
 
   Waiting processes:
     costs 8 points
-    ☐ Moving task to separate process (symbol '&')
+    ✔ Moving task to separate process (symbol '&') @done (15-03-14 18:21)
 
   Variables:
     costs 9 points
